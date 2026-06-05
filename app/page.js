@@ -1,0 +1,1 @@
+export default function Home() { return <h1>World Cup Sentiment App</h1> }

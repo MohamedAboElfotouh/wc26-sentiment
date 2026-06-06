@@ -1,0 +1,26 @@
+# Environment Variables & Secrets
+.env
+.env.local
+.env.*.local
+*.env
+
+# Python Virtual Environments & Cache
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+
+# Next.js & Node Dependencies
+node_modules/
+.next/
+out/
+.vercel
+.idea/

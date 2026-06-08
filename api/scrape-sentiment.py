@@ -1,6 +1,7 @@
 import os
 import json
 import requests
+import time
 from supabase import create_client, Client
 from http.server import BaseHTTPRequestHandler
 
@@ -21,14 +22,87 @@ TWITTER_API_KEY = os.environ.get("TWITTER_API_KEY")
 
 def analyze_sentiment(tweets):
     """
-    Placeholder for your future AI engineering work!
-    Replace this with your NLP model logic to process the raw tweet text.
+    Analyzes tweet sentiment using Hugging Face's multilingual XLM-RoBERTa model.
+    Handles rate limits (429) and cold starts (503) via an exponential backoff & retry mechanism.
     """
+    hf_api_key = os.environ.get("HUGGINGFACE_API_KEY")
+    if not hf_api_key:
+        print("[ERROR] HUGGINGFACE_API_KEY missing. Returning empty sentiment.")
+        return {"positive_count": 0, "neutral_count": 0, "negative_count": 0, "avg_score": 0.0}
+
+    API_URL = "https://router.huggingface.co/hf-inference/models/cardiffnlp/twitter-xlm-roberta-base-sentiment"
+
+    # 1. Extract raw text from the mock TwitterAPI.io dictionary structures
+    texts = [tweet.get("text", "").strip() for tweet in tweets if tweet.get("text")]
+
+    if not texts:
+        return {"positive_count": 0, "neutral_count": 0, "negative_count": 0, "avg_score": 0.0}
+
+    sentiment_counts = {"positive": 0, "neutral": 0, "negative": 0}
+    total_score = 0.0
+
+    # 2. Open a persistent connection pool to drastically speed up sequential requests
+    session = requests.Session()
+    session.headers.update({"Authorization": f"Bearer {hf_api_key}"})
+
+    # 3. Iterate through each tweet individually
+    for text in texts:
+        payload = {"inputs": text}
+        success = False
+        max_retries = 3
+        base_delay = 2
+
+        for attempt in range(max_retries):
+            response = session.post(API_URL, json=payload)
+
+            if response.status_code == 200:
+                res_data = response.json()
+
+                # Safely extract the label dictionary whether it returns [[{...}]] or [{...}]
+                if isinstance(res_data, list) and len(res_data) > 0:
+                    labels_list = res_data[0] if isinstance(res_data[0], list) else res_data
+                else:
+                    break  # Unrecognized format, break to trigger failure fallback
+
+                best_label = max(labels_list, key=lambda x: x.get('score', 0))['label'].lower()
+
+                if best_label == "positive":
+                    sentiment_counts["positive"] += 1
+                    total_score += 1.0
+                elif best_label == "negative":
+                    sentiment_counts["negative"] += 1
+                    total_score -= 1.0
+                else:
+                    sentiment_counts["neutral"] += 1
+                    total_score += 0.0
+
+                success = True
+                break
+
+            elif response.status_code == 503:
+                error_data = response.json()
+                wait_time = error_data.get("estimated_time", 10.0)
+                print(f"[INFO] Cold start. Waiting {wait_time:.1f}s...")
+                time.sleep(wait_time)
+            elif response.status_code == 429:
+                time.sleep(base_delay)
+                base_delay *= 2
+            else:
+                print(f"[ERROR] API failed on a tweet (Status {response.status_code})")
+                break
+
+        # 4. If a single tweet fails completely after retries, safely default it to neutral
+        if not success:
+            sentiment_counts["neutral"] += 1
+
+    # Calculate final bounding
+    avg_score = total_score / len(texts)
+
     return {
-        "positive_count": 10,
-        "neutral_count": 15,
-        "negative_count": 5,
-        "avg_score": 0.650
+        "positive_count": sentiment_counts["positive"],
+        "neutral_count": sentiment_counts["neutral"],
+        "negative_count": sentiment_counts["negative"],
+        "avg_score": round(avg_score, 3)
     }
 
 

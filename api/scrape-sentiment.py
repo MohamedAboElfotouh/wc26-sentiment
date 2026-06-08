@@ -32,8 +32,8 @@ def analyze_sentiment(tweets):
 
     API_URL = "https://router.huggingface.co/hf-inference/models/cardiffnlp/twitter-xlm-roberta-base-sentiment"
 
-    # 1. Extract raw text from the mock TwitterAPI.io dictionary structures
-    texts = [tweet.get("text", "").strip() for tweet in tweets if tweet.get("text")]
+    # 1. Extract raw text and slice to a safe maximum length to prevent 400 errors
+    texts = [tweet.get("text", "").strip()[:400] for tweet in tweets if tweet.get("text")]
 
     if not texts:
         return {"positive_count": 0, "neutral_count": 0, "negative_count": 0, "avg_score": 0.0}
@@ -88,7 +88,8 @@ def analyze_sentiment(tweets):
                 time.sleep(base_delay)
                 base_delay *= 2
             else:
-                print(f"[ERROR] API failed on a tweet (Status {response.status_code})")
+                # Print response.text to expose the exact reason for the 400 error
+                print(f"[ERROR] API failed on a tweet (Status {response.status_code}): {response.text}")
                 break
 
         # 4. If a single tweet fails completely after retries, safely default it to neutral

@@ -1,0 +1,40 @@
+name: World Cup 2026 Sentiment Data Pipeline
+
+on:
+  schedule:
+    # JUNE: Runs twice a day, but strictly bound between June 10th and June 30th
+    - cron: '0 8 10-30 6 *'
+    - cron: '0 20 10-30 6 *'
+
+    # JULY: Runs twice a day, but strictly bound between July 1st and July 20th
+    - cron: '0 8 1-20 7 *'
+    - cron: '0 20 1-20 7 *'
+
+  workflow_dispatch: # Allows for manual testing if needed
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Codebase
+        uses: actions/checkout@v4
+
+      - name: Set up Python Environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Pipeline Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+
+      - name: Execute Sentiment Scraper
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          TWITTER_API_KEY: ${{ secrets.TWITTER_API_KEY }}
+          HUGGINGFACE_API_KEY: ${{ secrets.HUGGINGFACE_API_KEY }}
+        run: python api/scrape-sentiment.py

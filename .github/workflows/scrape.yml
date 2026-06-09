@@ -2,9 +2,9 @@ name: World Cup 2026 Sentiment Data Pipeline
 
 on:
   schedule:
-    # JUNE: Runs twice a day, but strictly bound between June 10th and June 30th
-    - cron: '0 8 10-30 6 *'
-    - cron: '0 20 10-30 6 *'
+    # JUNE: Runs twice a day, but strictly bound between June 11th and June 30th
+    - cron: '0 8 11-30 6 *'
+    - cron: '0 20 11-30 6 *'
 
     # JULY: Runs twice a day, but strictly bound between July 1st and July 20th
     - cron: '0 8 1-20 7 *'

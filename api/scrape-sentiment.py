@@ -110,7 +110,7 @@ def analyze_sentiment(tweets):
 def run_scraping_pipeline():
     """Core logic to fetch teams, query Twitter, and store sentiment."""
     # Fetch target teams from Supabase
-    teams_response = supabase.table("teams").select("*").execute()
+    teams_response = supabase.table("teams").select("*").eq("is_active", True).execute()
     teams = teams_response.data
     results = []
 
@@ -145,8 +145,8 @@ def run_scraping_pipeline():
 
         print(f"Fetching data for {country_name}...")
 
-        # 2. Pagination Loop (Keep fetching until we have 30 unique tweets)
-        while len(unique_tweets) < 30:
+        # 2. Pagination Loop (Keep fetching until we have 40 unique tweets)
+        while len(unique_tweets) < 40:
             params = {
                 "query": query_string,
                 "queryType": "Latest"

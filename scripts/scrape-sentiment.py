@@ -2,8 +2,10 @@ import os
 import json
 import requests
 import time
+from datetime import datetime, timezone
 from supabase import create_client, Client
 from http.server import BaseHTTPRequestHandler
+from better_profanity import profanity
 
 # Load local environment variables natively during local testing
 try:
@@ -19,6 +21,34 @@ key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
 supabase: Client = create_client(url, key)
 TWITTER_API_KEY = os.environ.get("TWITTER_API_KEY")
 
+# Initialize the profanity filter with default English bad words
+profanity.load_censor_words()
+
+
+def format_twitter_date(date_string):
+    """
+    Safely parses varying Twitter date strings into a strict PostgreSQL-compatible ISO-8601 timestamp.
+    """
+    if not date_string:
+        return datetime.now(timezone.utc).isoformat()
+
+    try:
+        # Format 1: Standard Twitter API format (e.g., "Wed Oct 10 20:19:24 +0000 2018")
+        dt = datetime.strptime(date_string, "%a %b %d %H:%M:%S %z %Y")
+        return dt.isoformat()
+    except ValueError:
+        pass
+
+    try:
+        # Format 2: Standard ISO 8601 format (in case the API returns a standard string)
+        dt = datetime.fromisoformat(date_string.replace('Z', '+00:00'))
+        return dt.isoformat()
+    except ValueError:
+        pass
+
+    # Ultimate fallback to ensure the ingestion script never crashes
+    return datetime.now(timezone.utc).isoformat()
+
 
 def analyze_sentiment(tweets):
     """
@@ -32,7 +62,6 @@ def analyze_sentiment(tweets):
 
     API_URL = "https://router.huggingface.co/hf-inference/models/cardiffnlp/twitter-xlm-roberta-base-sentiment"
 
-    # 1. Extract raw text and slice to a safe maximum length to prevent 400 errors
     texts = [tweet.get("text", "").strip()[:400] for tweet in tweets if tweet.get("text")]
 
     if not texts:
@@ -41,11 +70,9 @@ def analyze_sentiment(tweets):
     sentiment_counts = {"positive": 0, "neutral": 0, "negative": 0}
     total_score = 0.0
 
-    # 2. Open a persistent connection pool to drastically speed up sequential requests
     session = requests.Session()
     session.headers.update({"Authorization": f"Bearer {hf_api_key}"})
 
-    # 3. Iterate through each tweet individually
     for text in texts:
         payload = {"inputs": text}
         success = False
@@ -58,11 +85,10 @@ def analyze_sentiment(tweets):
             if response.status_code == 200:
                 res_data = response.json()
 
-                # Safely extract the label dictionary whether it returns [[{...}]] or [{...}]
                 if isinstance(res_data, list) and len(res_data) > 0:
                     labels_list = res_data[0] if isinstance(res_data[0], list) else res_data
                 else:
-                    break  # Unrecognized format, break to trigger failure fallback
+                    break
 
                 best_label = max(labels_list, key=lambda x: x.get('score', 0))['label'].lower()
 
@@ -88,15 +114,12 @@ def analyze_sentiment(tweets):
                 time.sleep(base_delay)
                 base_delay *= 2
             else:
-                # Print response.text to expose the exact reason for the 400 error
                 print(f"[ERROR] API failed on a tweet (Status {response.status_code}): {response.text}")
                 break
 
-        # 4. If a single tweet fails completely after retries, safely default it to neutral
         if not success:
             sentiment_counts["neutral"] += 1
 
-    # Calculate final bounding
     avg_score = total_score / len(texts)
 
     return {
@@ -108,8 +131,7 @@ def analyze_sentiment(tweets):
 
 
 def run_scraping_pipeline():
-    """Core logic to fetch teams, query Twitter, and store sentiment."""
-    # Fetch target teams from Supabase
+    """Core logic to fetch teams, query Twitter, store sentiment, and archive clean tweets."""
     teams_response = supabase.table("teams").select("*").eq("is_active", True).execute()
     teams = teams_response.data
     results = []
@@ -118,18 +140,15 @@ def run_scraping_pipeline():
         team_id = team["team_id"]
         country_name = team["country_name"]
 
-        # Fetch keywords and aliases
         keywords_resp = supabase.table("search_keywords").select("search_term").eq("team_id", team_id).execute()
         aliases_resp = supabase.table("public_aliases").select("alias_name").eq("team_id", team_id).execute()
 
-        # Format the terms: keywords as-is, aliases wrapped in quotes for exact matching
         terms = [k["search_term"] for k in keywords_resp.data]
         terms += [f'"{a["alias_name"]}"' for a in aliases_resp.data]
 
         if not terms:
             continue
 
-        # 1. Multi-Layer Spam Framework
         context_anchor = '(World Cup OR "World Cup" OR WC26 OR WC2026 OR #WorldCup2026)'
         team_terms = f"({' OR '.join(terms)})"
         blacklist = "-bet -betting -win -giveaway -crypto -casino -pick -survive -contest -usd"
@@ -145,7 +164,6 @@ def run_scraping_pipeline():
 
         print(f"Fetching data for {country_name}...")
 
-        # 2. Pagination Loop (Keep fetching until we have 40 unique tweets)
         while len(unique_tweets) < 40:
             params = {
                 "query": query_string,
@@ -168,7 +186,6 @@ def run_scraping_pipeline():
                 print(f"No more tweets available for {country_name}.")
                 break
 
-            # 3. Midstream Python Deduplication
             for tweet in raw_tweets:
                 text = tweet.get("text", "").strip()
                 normalized_text = " ".join(text.lower().split())
@@ -187,7 +204,6 @@ def run_scraping_pipeline():
 
         print(f"Successfully collected {len(unique_tweets)} clean, unique tweets for {country_name}.")
 
-        # 4. Analyze Sentiment and Store in Database
         if unique_tweets:
             sentiment = analyze_sentiment(unique_tweets)
             snapshot_data = {
@@ -199,7 +215,32 @@ def run_scraping_pipeline():
             }
             supabase.table("sentiment_snapshots").insert(snapshot_data).execute()
             results.append(country_name)
-            print(f"Stored sentiment snapshot for {country_name} in Supabase.\n")
+            print(f"Stored sentiment snapshot for {country_name}.")
+
+            clean_tweets_to_insert = []
+            for tweet in unique_tweets:
+                text = tweet.get("text", "")
+
+                # Filter profanity before creating the database payload
+                if not profanity.contains_profanity(text):
+                    user_data = tweet.get("author", {}) or tweet.get("user", {})
+                    username = user_data.get("userName") or user_data.get("username") or user_data.get(
+                        "name") or "anonymous_fan"
+
+                    # Intercept and safely format the raw string into a valid Postgres Timestamp
+                    raw_posted_at = tweet.get("createdAt") or tweet.get("created_at")
+                    safe_posted_at = format_twitter_date(raw_posted_at)
+
+                    clean_tweets_to_insert.append({
+                        "team_id": team_id,
+                        "username": username,
+                        "tweet_text": text,
+                        "posted_at": safe_posted_at
+                    })
+
+            if clean_tweets_to_insert:
+                supabase.table("tweets").insert(clean_tweets_to_insert).execute()
+                print(f"Archived {len(clean_tweets_to_insert)} safe tweets for {country_name}.\n")
 
     return results
 
@@ -222,7 +263,6 @@ class handler(BaseHTTPRequestHandler):
         return
 
 
-# Local execution block for testing without spinning up a server
 if __name__ == "__main__":
     print("Running local pipeline test...")
     run_scraping_pipeline()

@@ -1,5 +1,6 @@
+import Link from 'next/link';
+
 export default function TeamRow({ team, sentiment }) {
-  // Exact ISO Alpha-2 mapping for the 48 World Cup 2026 teams
   const fifaToIso = {
     'ARG': 'ar', 'AUS': 'au', 'AUT': 'at', 'BEL': 'be', 'BIH': 'ba', 'BRA': 'br',
     'CAN': 'ca', 'CIV': 'ci', 'CMR': 'cm', 'COD': 'cd', 'COL': 'co', 'CPV': 'cv',
@@ -14,30 +15,33 @@ export default function TeamRow({ team, sentiment }) {
   };
 
   const getSentimentColor = (score) => {
-    if (score > 0.3) return "text-green-500 bg-green-500/10";
-    if (score < -0.3) return "text-red-500 bg-red-500/10";
-    return "text-gray-500 bg-gray-500/10";
+    if (score > 0.3) return "text-green-700 bg-green-500/20 dark:text-green-400 dark:bg-green-500/10";
+    if (score < -0.3) return "text-red-700 bg-red-500/20 dark:text-red-400 dark:bg-red-500/10";
+    return "text-gray-700 bg-gray-500/20 dark:text-gray-400 dark:bg-gray-500/10";
   };
 
   const badgeStyle = getSentimentColor(sentiment?.avg_score || 0);
-
-  // Safely grab the ISO code, fallback to 'un' (United Nations flag) if missing
   const isoCode = fifaToIso[team.fifa_code] || 'un';
 
   return (
-    <div className="flex items-center justify-between p-3 border-b border-gray-800 last:border-0 hover:bg-gray-800/50 transition-colors">
+    <Link
+      href={`/team/${team.team_id}`}
+      className="flex items-center justify-between p-3 border-b border-gray-200 dark:border-gray-800 last:border-0 hover:bg-gray-100 dark:hover:bg-gray-800/50 transition-colors cursor-pointer group"
+    >
       <div className="flex items-center gap-3">
         <img
           src={`https://flagcdn.com/w40/${isoCode}.png`}
           alt={`${team.country_name} flag`}
-          className="w-8 h-auto rounded-sm shadow-sm"
+          className="w-8 h-auto rounded-sm shadow-sm transition-transform group-hover:scale-105"
         />
-        <span className="font-medium text-gray-100">{team.country_name}</span>
+        <span className="font-medium text-gray-900 dark:text-gray-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+          {team.country_name}
+        </span>
       </div>
 
       <div className={`px-3 py-1 rounded-full text-sm font-semibold ${badgeStyle}`}>
-        {sentiment ? sentiment.avg_score.toFixed(2) : "N/A"}
+        {sentiment ? (sentiment.avg_score > 0 ? "+" : "") + sentiment.avg_score.toFixed(2) : "N/A"}
       </div>
-    </div>
+    </Link>
   );
 }

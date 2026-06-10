@@ -2,7 +2,7 @@ import os
 import json
 import requests
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from supabase import create_client, Client
 from http.server import BaseHTTPRequestHandler
 from better_profanity import profanity
@@ -241,6 +241,20 @@ def run_scraping_pipeline():
             if clean_tweets_to_insert:
                 supabase.table("tweets").insert(clean_tweets_to_insert).execute()
                 print(f"Archived {len(clean_tweets_to_insert)} safe tweets for {country_name}.\n")
+
+    # --- NEW PRUNING LOGIC ---
+    print("\n[INFO] Starting database pruning to protect storage limits...")
+    try:
+        # Calculate the exact timestamp for 48 hours ago
+        cutoff_timestamp = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
+
+        # Execute the delete operation on the 'tweets' table
+        prune_response = supabase.table("tweets").delete().lt("created_at", cutoff_timestamp).execute()
+
+        deleted_count = len(prune_response.data) if prune_response.data else 0
+        print(f"[SUCCESS] Pruned {deleted_count} tweets older than 48 hours.")
+    except Exception as e:
+        print(f"[ERROR] Failed to prune old tweets: {e}")
 
     return results
 

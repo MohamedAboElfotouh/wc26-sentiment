@@ -4,9 +4,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 
 export default function TrendChart({ teams, snapshots, hideControls = false }) {
-  // Now managing an array of up to 3 selected team IDs
   const [selectedTeams, setSelectedTeams] = useState([teams[0]?.team_id]);
-  // Track which specific dropdown index is currently open
   const [openDropdown, setOpenDropdown] = useState(null);
   const dropdownRef = useRef(null);
 
@@ -58,25 +56,59 @@ export default function TrendChart({ teams, snapshots, hideControls = false }) {
     setOpenDropdown(null);
   };
 
-  // Group snapshots by exact time buckets to align them on the unified X-Axis
+  // --- NEW 30-MINUTE CLUSTERING ALGORITHM ---
   const chartData = useMemo(() => {
     if (!selectedTeams.length || !snapshots) return [];
 
+    // Filter relevant teams and sort chronologically strictly by timestamp
     const relevantSnapshots = snapshots.filter(s => selectedTeams.includes(s.team_id));
+    relevantSnapshots.sort((a, b) => new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime());
 
-    const grouped = relevantSnapshots.reduce((acc, s) => {
-      const dateObj = new Date(s.recorded_at);
-      const timeLabel = `${dateObj.getDate()} ${dateObj.toLocaleString('en-US', { month: 'short' })} ${dateObj.getHours() % 12 || 12}:${dateObj.getMinutes().toString().padStart(2, '0')} ${dateObj.getHours() >= 12 ? 'PM' : 'AM'}`;
+    const buckets = [];
+    const TIME_THRESHOLD_MS = 30 * 60 * 1000; // 30 minutes
 
-      if (!acc[timeLabel]) {
-        acc[timeLabel] = { timeLabel, timestamp: dateObj.getTime() };
+    relevantSnapshots.forEach(snapshot => {
+      const currentTimestamp = new Date(snapshot.recorded_at).getTime();
+      let lastBucket = buckets.length > 0 ? buckets[buckets.length - 1] : null;
+
+      // If no buckets exist, OR the gap between this snapshot and the bucket base is > 30 mins, create a new bucket.
+      if (!lastBucket || (currentTimestamp - lastBucket.baseTimestamp) > TIME_THRESHOLD_MS) {
+        const dateObj = new Date(snapshot.recorded_at);
+        const timeLabel = `${dateObj.getDate()} ${dateObj.toLocaleString('en-US', { month: 'short' })} ${dateObj.getHours() % 12 || 12}:${dateObj.getMinutes().toString().padStart(2, '0')} ${dateObj.getHours() >= 12 ? 'PM' : 'AM'}`;
+
+        lastBucket = {
+          timeLabel,
+          baseTimestamp: currentTimestamp, // Anchor timestamp for the 30-min window
+          timestamp: currentTimestamp,     // Stored for X-Axis chronological plotting
+          _tempScores: {}                  // Private object to hold scores for averaging
+        };
+        buckets.push(lastBucket);
       }
 
-      acc[timeLabel][s.team_id] = parseFloat(s.avg_score.toFixed(2));
-      return acc;
-    }, {});
+      // Append score to the bucket's temporary team array
+      if (!lastBucket._tempScores[snapshot.team_id]) {
+        lastBucket._tempScores[snapshot.team_id] = [];
+      }
+      lastBucket._tempScores[snapshot.team_id].push(snapshot.avg_score);
+    });
 
-    return Object.values(grouped).sort((a, b) => a.timestamp - b.timestamp);
+    // Compute averages and flatten the structure for Recharts
+    return buckets.map(bucket => {
+      const finalPoint = {
+        timeLabel: bucket.timeLabel,
+        timestamp: bucket.timestamp
+      };
+
+      Object.keys(bucket._tempScores).forEach(teamId => {
+        const scores = bucket._tempScores[teamId];
+        // Calculate the mean average if multiple scores exist in the 30 min window
+        const avg = scores.reduce((sum, val) => sum + val, 0) / scores.length;
+        finalPoint[teamId] = parseFloat(avg.toFixed(2));
+      });
+
+      return finalPoint;
+    });
+
   }, [selectedTeams, snapshots]);
 
   // Dynamically mapped Tooltip to support multiple score entries
@@ -112,7 +144,7 @@ export default function TrendChart({ teams, snapshots, hideControls = false }) {
   return (
     <div className="w-full bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-2xl p-6 shadow-sm transition-colors">
 
-      {/* Dynamic Multi-Select Controls - HIDDEN IF hideControls IS TRUE */}
+      {/* Dynamic Multi-Select Controls */}
       {!hideControls && (
         <div className="mb-8 relative w-full flex flex-wrap gap-4 items-end" ref={dropdownRef}>
 
@@ -153,7 +185,6 @@ export default function TrendChart({ teams, snapshots, hideControls = false }) {
                   {openDropdown === index && (
                     <ul className="absolute left-0 w-full mt-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-2xl max-h-80 overflow-y-auto custom-scrollbar">
                       {teams.map(team => {
-                        // Prevent selecting the same team twice
                         const isAlreadySelected = selectedTeams.includes(team.team_id) && team.team_id !== selectedId;
                         if (isAlreadySelected) return null;
 
@@ -176,7 +207,6 @@ export default function TrendChart({ teams, snapshots, hideControls = false }) {
                   )}
                 </div>
 
-                {/* Action Buttons: Trash & Plus */}
                 <div className="flex items-center gap-1 ml-1" style={{ marginTop: index === 0 ? '24px' : '0px' }}>
                   {index > 0 && (
                     <button
@@ -233,7 +263,6 @@ export default function TrendChart({ teams, snapshots, hideControls = false }) {
               <Tooltip content={<CustomTooltip />} />
               <ReferenceLine y={0} stroke="#6B7280" strokeDasharray="3 3" opacity={0.5} />
 
-              {/* Dynamically map the Recharts Lines based on our active team selections */}
               {selectedTeams.map((teamId, index) => (
                 <Line
                   key={`line-${teamId}`}
@@ -241,7 +270,7 @@ export default function TrendChart({ teams, snapshots, hideControls = false }) {
                   dataKey={teamId}
                   stroke={colors[index]}
                   strokeWidth={3}
-                  connectNulls={true} /* Essential for spanning gaps if pipelines ran out of sync */
+                  connectNulls={true}
                   dot={{ r: 4, fill: colors[index], strokeWidth: 2, stroke: '#fff' }}
                   activeDot={{ r: 6, strokeWidth: 0 }}
                   animationDuration={1500}

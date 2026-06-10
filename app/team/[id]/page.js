@@ -5,7 +5,6 @@ import ThemeToggle from '@/components/ThemeToggle';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
-export const dynamic = 'force-dynamic';
 
 export default async function TeamProfilePage({ params }) {
   const { id } = await params;

@@ -38,3 +38,7 @@ jobs:
           TWITTER_API_KEY: ${{ secrets.TWITTER_API_KEY }}
           HUGGINGFACE_API_KEY: ${{ secrets.HUGGINGFACE_API_KEY }}
         run: python scripts/scrape-sentiment.py
+
+      - name: Trigger Next.js Cache Revalidation
+        run: |
+          curl -X POST "https://your-production-url.vercel.app/api/revalidate?secret=${{ secrets.REVALIDATION_SECRET }}"

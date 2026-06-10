@@ -3,8 +3,6 @@ import { supabase } from '@/lib/supabase';
 import GroupCard from '@/components/GroupCard';
 import ThemeToggle from '@/components/ThemeToggle';
 
-export const dynamic = 'force-dynamic';
-
 export default async function Home() {
   const fifaToIso = {
     'ARG': 'ar', 'AUS': 'au', 'AUT': 'at', 'BEL': 'be', 'BIH': 'ba', 'BRA': 'br',
@@ -78,16 +76,32 @@ export default async function Home() {
     }
   }
 
-  const groupedTeams = (teams || []).reduce((acc, team) => {
+  // 1. Map the sentiment data directly onto each team object
+  const teamsWithSentiment = (teams || []).map(team => {
+    const sentiment = latestSentimentsMap.get(team.team_id) || null;
+    return { ...team, sentiment };
+  });
+
+  // 2. Group the teams by their group_stage letter
+  const groupedTeams = teamsWithSentiment.reduce((acc, team) => {
     if (!acc[team.group_stage]) acc[team.group_stage] = [];
     acc[team.group_stage].push(team);
     return acc;
   }, {});
 
+  // 3. Sort each individual group array descending by the avg_score
+  Object.keys(groupedTeams).forEach(groupLetter => {
+    groupedTeams[groupLetter].sort((a, b) => {
+      const scoreA = a.sentiment?.avg_score || 0;
+      const scoreB = b.sentiment?.avg_score || 0;
+      return scoreB - scoreA;
+    });
+  });
+
   return (
     <main className="min-h-screen p-6 md:p-12 flex flex-col transition-colors duration-300">
       {/* Header with Theme Toggle */}
-      <header className="mb-12 border-b border-gray-200 dark:border-gray-800 pb-6 flex flex-col md:flex-row md:items-start justify-between gap-4">
+      <header className="mb-8 border-b border-gray-200 dark:border-gray-800 pb-6 flex flex-col md:flex-row md:items-start justify-between gap-4">
         <div>
           <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-emerald-600 dark:from-blue-400 dark:to-emerald-400">
             WC26 Sentiment Pulse
@@ -105,6 +119,38 @@ export default async function Home() {
           <ThemeToggle />
         </div>
       </header>
+
+      {/* --- NEW EXPLANATORY BANNER --- */}
+      <section className="mb-12 bg-gradient-to-r from-indigo-50 via-purple-50 to-blue-50 dark:from-indigo-950/40 dark:via-purple-900/30 dark:to-blue-900/40 border border-indigo-100 dark:border-indigo-800/60 rounded-2xl p-6 md:p-8 shadow-sm">
+        <div className="flex flex-col md:flex-row gap-6 items-start">
+          <div className="text-4xl hidden md:block mt-1">👋</div>
+          <div>
+            <h2 className="text-xl font-bold text-indigo-900 dark:text-indigo-300 mb-2 flex items-center gap-2">
+              <span className="md:hidden">👋</span> Hold up! What do these numbers actually mean?
+            </h2>
+            <p className="text-gray-700 dark:text-gray-300 leading-relaxed mb-3">
+              Just to be clear: this isn't a prediction board for who will win the World Cup, and it isn't just tracking on-pitch performance. We are measuring the <strong>raw global internet vibe</strong> around each team.
+            </p>
+            <p className="text-gray-700 dark:text-gray-300 leading-relaxed mb-5">
+              A team's score changes constantly. It might jump up because their fans cleaned a stadium, or tank due to a controversial foul, internet drama, or a wave of online hate. It’s a live thermometer of how the internet <em>feels</em> about them right now.
+            </p>
+            <div className="flex flex-wrap items-center gap-3 text-sm font-semibold">
+              <div className="flex items-center gap-2 bg-white dark:bg-gray-900 px-4 py-2 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800">
+                <span className="text-red-500 font-black text-base">-1.0</span>
+                <span className="text-gray-600 dark:text-gray-400">Maximum Hate</span>
+              </div>
+              <div className="flex items-center gap-2 bg-white dark:bg-gray-900 px-4 py-2 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800">
+                <span className="text-gray-500 font-black text-base">0.0</span>
+                <span className="text-gray-600 dark:text-gray-400">Totally Neutral</span>
+              </div>
+              <div className="flex items-center gap-2 bg-white dark:bg-gray-900 px-4 py-2 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800">
+                <span className="text-emerald-500 font-black text-base">+1.0</span>
+                <span className="text-gray-600 dark:text-gray-400">Absolute Love</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* Spotlight Insights Section */}
       {bestPerformance && worstPerformance && (
@@ -168,7 +214,6 @@ export default async function Home() {
             key={groupLetter}
             groupLetter={groupLetter}
             teams={groupedTeams[groupLetter]}
-            sentiments={latestSentiments}
           />
         ))}
       </section>

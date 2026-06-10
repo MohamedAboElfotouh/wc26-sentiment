@@ -3,7 +3,6 @@ import TrendChart from '@/components/TrendChart';
 import ThemeToggle from '@/components/ThemeToggle';
 import Link from 'next/link';
 
-export const dynamic = 'force-dynamic';
 
 export default async function TrendsPage() {
   // Fetch active teams

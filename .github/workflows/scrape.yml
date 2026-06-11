@@ -41,4 +41,4 @@ jobs:
 
       - name: Trigger Next.js Cache Revalidation
         run: |
-          curl -X POST "https://your-production-url.vercel.app/api/revalidate?secret=${{ secrets.REVALIDATION_SECRET }}"
+          curl -X POST "https://wc26-sentiment.vercel.app/api/revalidate?secret=${{ secrets.REVALIDATION_SECRET }}"

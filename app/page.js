@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import GroupCard from '@/components/GroupCard';
 import ThemeToggle from '@/components/ThemeToggle';
-
+export const revalidate = 3600;
 export default async function Home() {
   const fifaToIso = {
     'ARG': 'ar', 'AUS': 'au', 'AUT': 'at', 'BEL': 'be', 'BIH': 'ba', 'BRA': 'br',

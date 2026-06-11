@@ -2,7 +2,7 @@ import { supabase } from '@/lib/supabase';
 import TrendChart from '@/components/TrendChart';
 import ThemeToggle from '@/components/ThemeToggle';
 import Link from 'next/link';
-
+export const revalidate = 3600;
 
 export default async function TrendsPage() {
   // Fetch active teams

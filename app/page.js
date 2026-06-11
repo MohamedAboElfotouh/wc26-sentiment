@@ -38,17 +38,21 @@ export default async function Home() {
   }
   const latestSentiments = Array.from(latestSentimentsMap.values());
 
-  // 12-Hour AM/PM Timestamp Formatting
+  // 12-Hour AM/PM Timestamp Formatting (Forced to Cairo/Riyadh UTC+3 time zone)
   let formattedLastUpdated = "N/A";
   if (snapshots && snapshots.length > 0) {
     const lastDate = new Date(snapshots[0].recorded_at);
-    const day = lastDate.getDate();
-    const month = lastDate.toLocaleString('en-US', { month: 'long' });
 
-    let hours = lastDate.getHours();
-    const minutes = lastDate.getMinutes().toString().padStart(2, '0');
+    // Explicitly enforce the target time zone for regional users and buyers
+    const targetTimeZone = 'Africa/Cairo'; // or 'Asia/Riyadh' (both are UTC+3)
+
+    const day = lastDate.toLocaleString('en-US', { day: 'numeric', timeZone: targetTimeZone });
+    const month = lastDate.toLocaleString('en-US', { month: 'long', timeZone: targetTimeZone });
+
+    let hours = parseInt(lastDate.toLocaleString('en-US', { hour: 'numeric', hour12: false, timeZone: targetTimeZone }));
+    const minutes = lastDate.toLocaleString('en-US', { minute: '2-digit', timeZone: targetTimeZone }).padStart(2, '0');
+
     const ampm = hours >= 12 ? 'PM' : 'AM';
-
     hours = hours % 12;
     hours = hours ? hours : 12; // Convert hour '0' to '12'
 

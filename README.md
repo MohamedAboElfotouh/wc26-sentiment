@@ -46,24 +46,24 @@ The project relies on a precisely orchestrated microservices architecture, built
 *   TwitterAPI.io & Hugging Face API keys
 
 ### 1. Clone the repository
-\`\`\`bash
+```bash
 git clone https://github.com/yourusername/wc26-sentiment.git
 cd wc26-sentiment
-\`\`\`
+```
 
 ### 2. Install Frontend Dependencies
-\`\`\`bash
+```bash
 npm install
-\`\`\`
+```
 
 ### 3. Install Python Dependencies
-\`\`\`bash
+```bash
 pip install -r requirements.txt
-\`\`\`
+```
 
 ### 4. Environment Variables
 Create a `.env.local` file in the root directory and add your keys:
-\`\`\`env
+```env
 # Next.js / Supabase Variables
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
@@ -76,15 +76,15 @@ HUGGINGFACE_API_KEY=your_huggingface_read_token
 
 # Cache Revalidation Secret
 REVALIDATION_SECRET=your_secure_random_string
-\`\`\`
+```
 
 ### 5. Run the Application locally
 Start the Next.js development server:
-\`\`\`bash
+```bash
 npm run dev
-\`\`\`
+```
 
 To manually test the MLOps pipeline and populate your local database:
-\`\`\`bash
+```bash
 python scripts/scrape-sentiment.py
-\`\`\`
+```

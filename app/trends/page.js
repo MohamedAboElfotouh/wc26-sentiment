@@ -9,7 +9,6 @@ export default async function TrendsPage() {
   const { data: teams } = await supabase
     .from('teams')
     .select('*')
-    .eq('is_active', true)
     .order('country_name', { ascending: true }); // Alphabetical order for the dropdown
 
   // Fetch all historical sentiment snapshots

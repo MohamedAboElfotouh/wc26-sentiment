@@ -20,7 +20,6 @@ export default async function Home() {
   const { data: teams } = await supabase
     .from('teams')
     .select('*')
-    .eq('is_active', true)
     .order('group_stage', { ascending: true });
 
   const { data: snapshots } = await supabase

@@ -14,7 +14,8 @@ export default async function TrendsPage() {
   // Fetch all historical sentiment snapshots
   const { data: snapshots } = await supabase
     .from('sentiment_snapshots')
-    .select('team_id, avg_score, recorded_at');
+    .select('team_id, avg_score, recorded_at')
+    .limit(5000);
 
   return (
     <main className="min-h-screen p-6 md:p-12 flex flex-col transition-colors duration-300">

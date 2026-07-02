@@ -67,8 +67,7 @@ export default async function Home() {
         const teamObj = teams.find(t => t.team_id === s.team_id);
         return { ...s, team: teamObj };
       })
-      .filter(item => item.team !== undefined);
-
+      .filter(item => item.team !== undefined && item.team.is_active === true);
     if (activeSentimentsWithTeams.length > 0) {
       bestPerformance = activeSentimentsWithTeams.reduce((max, item) =>
         item.avg_score > max.avg_score ? item : max, activeSentimentsWithTeams[0]
